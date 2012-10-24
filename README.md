@@ -1,10 +1,10 @@
 # Gaspar
-<img src="http://cdn.wikimg.net/strategywiki/images/0/04/Chrono_Trigger_Sprites_Gaspar.png" align="right" />
+<img src="http://cdn.wikimg.net/strategywiki/images/0/04/Chrono_Trigger_Sprites_Gaspar.png" align="right" style="margin: 0 0 20px 20px" />
 
-Gaspar is a recurring job ("cron") manager for Ruby daemons. It's primarily intended to be used with Rails and friends.
+Gaspar is a recurring job ("cron") manager for Ruby daemons. It's primarily intended to be used with Rails + Sidekiq/Resque and friends.
 
 Gaspar runs in-process, meaning there is no additional daemon to configure or maintain. Just define your jobs and they'll get fired by *something*,
-whether that's your Rails processes, Sidekiq workers, or whatnot.
+whether that's your Rails processes, Sidekiq workers, or whatnot. Of course, you can always run it in a separate daemon if you wanted, too.
 
 By default, Gaspar does not run if you are running under Rails and `Rails.env.test?`. Pass `:permit_test_mode => true` to `Gaspar.schedule` if you want Gaspar to run in test mode.
 
@@ -26,7 +26,7 @@ Or install it yourself as:
 
 Usage is straightforward. Jobs are defined in a DSL. At a minimum, you need to pass a Redis instance to Gaspar, which is used for synchronizing job locks. The redis instance should be threadsafe; if you haven't turned it off explicitly, thread safety should already be present.
 
-    Gaspar.schedule(Redis.new, :logger => Rails.logger) do
+    Gaspar.configure(:logger => Rails.logger) do
       every "5s", "Ping" do
         Rails.logger.debug "ping"
       end
@@ -52,19 +52,35 @@ Jobs also accept cron formats:
 
 Jobs are each run in their own individual thread, but you should keep your jobs as lightweight as possible, so best practices will generally mean firing off background workers.
 
-    Gaspar.schedule(Redis.new, :logger => Rails.logger) do
+    Gaspar.configure(:logger => Rails.logger) do
       every "10m",         :UpdateStuffWorker
-      every "1h",          :HourlyUpdateWorker
-      cron  "0 * * * * ",  :DailyUpdateWorker
+      cron  "0 * * * * ",  :DailyUpdateWorker, "with", :some_options => true
+      every("1h")          { HourlyUpdateWorker.perform_async }
     end
 
-If you want Gaspar to only run in, say, your Sidekiq workers (and not your Rails instances or rake tasks), just scope it appropriately:
+Once you have Gaspar configured, you'll need to choose when to start it, and you'll pass a Redis connection for Gaspar to use. This is done separately from the configuration with the expectation that you won't want to run Gaspar for everything that boots your app, and you'll need to take care to close Gaspar (using `Gaspar#retire`) pre-forking, and to start it post-forking (using `Gaspar#start!`)
 
-  if Sidekiq.server?
-    Gaspar.schedule(...) do
-      # ...
+    Gaspar.start!
+
+Since Gaspar uses a Redis connection, you should initialize it after your daemon forks. For example, to use it with Unicorn:
+
+    before_fork do |server, worker|
+      Gaspar.retire
     end
-  end
+
+    after_fork do |server, worker|
+      Gaspar.start! Redis.new
+    end
+
+Or with Passenger:
+
+   PhusionPassenger.on_event(:starting_worker_process) do |forked|
+      if forked
+        Gaspar.start! Redis.new
+      end
+   end
+
+Finally, Gaspar will refuse to initialize if the process has a controlling TTY. This prevents it from running for, say, rake tasks and the like.
 
 ## Contributing
 

@@ -1,4 +1,4 @@
-Copyright (c) 2012 Chris Heald
+Copyright (c) 2012 Mashable, Inc
 
 MIT License
 
