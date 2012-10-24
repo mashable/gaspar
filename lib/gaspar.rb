@@ -3,6 +3,7 @@ require "gaspar/version"
 require "rufus/scheduler"
 require 'colorize'
 require 'active_support/core_ext/array/extract_options'
+require 'active_support/inflector'
 
 class Gaspar
   attr_reader :drift, :scheduler
@@ -89,6 +90,7 @@ class Gaspar
     else
       klass, worker_args = *args
       options[:name] ||= "%s(%s)" % [klass, args.join(", ")]
+      klass = klass.to_s
       case @options[:worker]
       when :resque
         block = Proc.new { Resque.enqueue klass.constantize, *worker_args }
@@ -96,7 +98,6 @@ class Gaspar
         block = Proc.new { klass.constantize.perform_async *worker_args }
       end
     end
-
 
     name = options.delete :name
     if name.nil?
