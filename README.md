@@ -74,11 +74,11 @@ Since Gaspar uses a Redis connection, you should initialize it after your daemon
 
 Or with Passenger:
 
-   PhusionPassenger.on_event(:starting_worker_process) do |forked|
+    PhusionPassenger.on_event(:starting_worker_process) do |forked|
       if forked
         Gaspar.start! Redis.new
       end
-   end
+    end
 
 Finally, Gaspar will refuse to initialize if the process has a controlling TTY. This prevents it from running for, say, rake tasks and the like.
 
