@@ -50,7 +50,7 @@ Jobs also accept cron formats:
       # Run stuff at 15 and 30 past the hour
     end
 
-Jobs are each run in their own individual thread, but you should keep your jobs as lightweight as possible, so best practices will generally mean firing off background workers.
+Jobs are each run in their own individual thread, but you should keep your jobs as lightweight as possible, so best practices will generally mean firing off background workers. Jobs should never exceed 15 seconds runtime, as on process exit, Gaspar will delay for up to 15 seconds to allow currently-running jobs to terminate before they are abandoned. Additionally, jobs should be threadsafe.
 
     Gaspar.configure(:logger => Rails.logger) do
       every "10m",         :UpdateStuffWorker
@@ -60,7 +60,7 @@ Jobs are each run in their own individual thread, but you should keep your jobs 
 
 Once you have Gaspar configured, you'll need to choose when to start it, and you'll pass a Redis connection for Gaspar to use. This is done separately from the configuration with the expectation that you won't want to run Gaspar for everything that boots your app, and you'll need to take care to close Gaspar (using `Gaspar#retire`) pre-forking, and to start it post-forking (using `Gaspar#start!`)
 
-    Gaspar.start!
+    Gaspar.start!(Redis.new)
 
 Since Gaspar uses a Redis connection, you should initialize it after your daemon forks. For example, to use it with Unicorn:
 

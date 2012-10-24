@@ -53,7 +53,7 @@ class Gaspar
     end
 
     def log(logger, message)
-      logger.debug "[%s] %s" % ["GASPAR".yellow, message] if logger
+      logger.debug "[%s] %s" % ["Gaspar".yellow, message] if logger
     end
   end
 
@@ -114,7 +114,7 @@ class Gaspar
         raise "No :name specified and sourcify is not available. Specify a name, or add sourcify to your bundle."
       end
     end
-    key = "cron:%s-%s" % [timing, name]
+    key = "#{@options[:namespace]}:%s-%s" % [timing, name]
     period = options.delete :period
     expiry = period - 5
     expiry = 1 if expiry < 1
@@ -125,7 +125,7 @@ class Gaspar
         log "#{Process.pid} running #{name}"
         # ...set the lock to expire, which makes sure that staggered workers with out-of-sync clocks don't
         lock { @running_jobs += 1 }
-        @redis.expire key, expiry
+        @redis.expire key, expiry.to_i
         # ...and then run the job
         block.call
         lock { @running_jobs -= 1 }
@@ -160,6 +160,7 @@ class Gaspar
     instance_eval &@block
 
     at_exit do
+      @scheduler.stop if @scheduler
       force_shutdown_at = Time.now.to_i + 15
       sleep(0.1) while lock { @running_jobs } > 0 and Time.now.to_i < force_shutdown_at
     end
