@@ -14,15 +14,7 @@ class Gaspar
     #
     # options - an options hash
     def configure(options = {}, &block)
-      @singleton ||= begin
-        if Object.const_defined? :Rails and Rails.env.test?
-          return unless options[:permit_test_mode]
-        end
-        options[:worker] ||= :sidekiq if Object.const_defined? :Sidekiq
-        options[:worker] ||= :resque  if Object.const_defined? :Resque
-        new(options, &block)
-      end
-
+      @singleton ||= new(options, &block)
       self
     end
 
@@ -145,10 +137,16 @@ class Gaspar
     lock { @running_jobs = 0 }
 
     @options[:namespace] ||= "gaspar"
+    @options[:worker]    ||= :sidekiq if Object.const_defined? :Sidekiq
+    @options[:worker]    ||= :resque  if Object.const_defined? :Resque
   end
 
   def start!(redis)
     return log "Running under a controlling TTY. Refusing to start. Try starting from a daemonized process." if STDOUT.tty? or STDERR.tty?
+    if Object.const_defined? :Rails and Rails.env.test?
+      return unless @options[:permit_test_mode]
+    end
+
     @redis = redis
 
     return if @started
