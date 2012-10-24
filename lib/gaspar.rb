@@ -5,34 +5,51 @@ require 'colorize'
 require 'active_support/core_ext/array/extract_options'
 
 class Gaspar
-  VERSION = "0.0.1"
-
   attr_reader :drift, :scheduler
 
   class << self
     attr_reader :singleton
 
-    def schedule(redis, options = {}, &block)
-      if Object.const_defined? :Rails
-        return unless options[:permit_test_mode] if Rails.env.test?
+    # Public: Configure Gaspar
+    #
+    # options - an options hash
+    def configure(options = {}, &block)
+      @singleton ||= begin
+        if Object.const_defined? :Rails and Rails.env.test?
+          return unless options[:permit_test_mode]
+        end
+        options[:worker] ||= :sidekiq if Object.const_defined? :Sidekiq
+        options[:worker] ||= :resque  if Object.const_defined? :Resque
+        new(options, &block)
       end
 
-      options[:worker] ||= :sidekiq if Object.const_defined? :Sidekiq
-      options[:worker] ||= :resque  if Object.const_defined? :Resque
-
-      @singleton ||= new(redis, options, &block)
       self
     end
 
-    def start!
-      raise "Gaspar#schedule has not been called, or did not succeed" if @singleton.nil?
-      @singleton.send(:start!) if @singleton
+    # Public: Get whether Gaspar has been configured yet or not
+    #
+    # Returns: [Boolean]
+    def configured?
+      !@singleton.nil?
     end
 
+    # Public: Stop processing jobs and destroy the singleton. Returns Gaspar to an unconfigured state.
     def destruct!
+      retire
+      @singleton = nil
+    end
+
+    # Public: Execute the configuration and start processing jobs.
+    #
+    # redis - The redis instance to use for synchronization
+    def start!(redis)
+      raise "Gaspar#configure has not been called, or did not succeed" if @singleton.nil?
+      @singleton.send(:start!, redis) if @singleton
+    end
+
+    def retire
       return unless @singleton
       @singleton.send(:shutdown!)
-      @singleton = nil
     end
 
     def log(logger, message)
@@ -120,9 +137,8 @@ class Gaspar
     self.class.log @logger, message
   end
 
-  def initialize(redis, options = {}, &block)
-    @logger       = options.delete :logger
-    @redis        = redis
+  def initialize(options = {}, &block)
+    @logger       = options[:logger]
     @options      = options
     @block        = block
     @lock = Mutex.new
@@ -131,8 +147,10 @@ class Gaspar
     @options[:namespace] ||= "gaspar"
   end
 
-  def start!
+  def start!(redis)
     return log "Running under a controlling TTY. Refusing to start. Try starting from a daemonized process." if STDOUT.tty? or STDERR.tty?
+    @redis = redis
+
     return if @started
 
     @started = true
@@ -140,7 +158,6 @@ class Gaspar
     @scheduler = Rufus::Scheduler.start_new
     @scheduler.every("1h") { sync_watches }
     instance_eval &@block
-    @block = nil
 
     at_exit do
       force_shutdown_at = Time.now.to_i + 15
@@ -150,6 +167,7 @@ class Gaspar
 
   def shutdown!
     @scheduler.stop if @scheduler
+    @started = false
   end
 
   # Abuse Redis key TTLs to synchronize our watches

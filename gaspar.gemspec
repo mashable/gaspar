@@ -20,7 +20,7 @@ Gem::Specification.new do |gem|
   gem.add_dependency('rufus-scheduler')
   gem.add_dependency('redis', '>= 2.2.0')
   gem.add_dependency('colorize')
-  gem.add_dependency('active_support')
+  gem.add_dependency('activesupport')
   gem.add_development_dependency('rspec')
   gem.add_development_dependency('timecop')
 end
