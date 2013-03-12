@@ -83,9 +83,7 @@ class Gaspar
     options = options.merge(:first_at => start_at)
     options[:period] = seconds
 
-    schedule :every, timing, args, options do
-      run_callbacks(:run) { block.call }
-    end
+    schedule :every, timing, args, options, &block
   end
 
   def cron(timing, *args, &block)
@@ -138,7 +136,7 @@ class Gaspar
         lock { @running_jobs += 1 }
         @redis.expire key, expiry.to_i
         # ...and then run the job
-        block.call
+        run_callbacks(:run) { block.call }
         lock { @running_jobs -= 1 }
       end
     end
