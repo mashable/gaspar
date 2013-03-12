@@ -4,9 +4,13 @@ require "rufus/scheduler"
 require 'colorize'
 require 'active_support/core_ext/array/extract_options'
 require 'active_support/inflector'
+require 'active_support/concern'
+require 'active_support/callbacks'
 
 class Gaspar
   attr_reader :drift, :scheduler
+  include ActiveSupport::Callbacks
+  define_callbacks :run
 
   class << self
     attr_reader :singleton
@@ -50,6 +54,18 @@ class Gaspar
     end
   end
 
+  def before_each(&block)
+    self.class.set_callback :run, :before, &block
+  end
+
+  def after_each(&block)
+    self.class.set_callback :run, :after, &block
+  end
+
+  def around_each(&block)
+    self.class.set_callback :run, :around, &block
+  end
+
   def every(timing, *args, &block)
     options = args.extract_options!
 
@@ -67,7 +83,9 @@ class Gaspar
     options = options.merge(:first_at => start_at)
     options[:period] = seconds
 
-    schedule :every, timing, args, options, &block
+    schedule :every, timing, args, options do
+      run_callbacks(:run) { block.call }
+    end
   end
 
   def cron(timing, *args, &block)
