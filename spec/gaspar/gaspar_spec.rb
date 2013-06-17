@@ -25,6 +25,7 @@ describe Gaspar do
       STDOUT.stub(:tty?).and_return(false)
       STDERR.stub(:tty?).and_return(false)
     }
+    after(:each) { Gaspar.reset_callbacks(:run) }
 
     context "configuration" do
       it "should accept #every during configuration" do
@@ -40,6 +41,20 @@ describe Gaspar do
             every("5m") { puts "Doing stuff" }
           end.start!(redis)
         }.to raise_error("No :name specified and sourcify is not available. Specify a name, or add sourcify to your bundle.")
+      end
+
+      it "should run callbacks" do
+        callbacks = []
+        Gaspar.configure do
+          before_each { callbacks.push "before" }
+          after_each  { callbacks.push "after" }
+          around_each {|&block| callbacks.push "around"; block.call }
+
+          every("0.35s", "run callbacks") { callbacks.push "inside" }
+        end.start!(redis)
+        sleep(0.4)
+
+        callbacks.should == %w(before around inside after)
       end
 
       it "should not require a name if a symbol is passed to a job" do

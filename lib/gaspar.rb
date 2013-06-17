@@ -4,9 +4,13 @@ require "rufus/scheduler"
 require 'colorize'
 require 'active_support/core_ext/array/extract_options'
 require 'active_support/inflector'
+require 'active_support/concern'
+require 'active_support/callbacks'
 
 class Gaspar
   attr_reader :drift, :scheduler
+  include ActiveSupport::Callbacks
+  define_callbacks :run
 
   class << self
     attr_reader :singleton
@@ -52,6 +56,18 @@ class Gaspar
 
   def can_run_if(&block)
     @can_run_if = block
+  end
+
+  def before_each(&block)
+    self.class.set_callback :run, :before, &block
+  end
+
+  def after_each(&block)
+    self.class.set_callback :run, :after, &block
+  end
+
+  def around_each(&block)
+    self.class.set_callback :run, :around, &block
   end
 
   def every(timing, *args, &block)
@@ -131,7 +147,7 @@ class Gaspar
         lock { @running_jobs += 1 }
         @redis.expire key, expiry.to_i
         # ...and then run the job
-        block.call
+        run_callbacks(:run) { block.call }
         lock { @running_jobs -= 1 }
       end
     end
