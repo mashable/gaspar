@@ -11,6 +11,13 @@ describe Gaspar do
         every "5m", :Foo
       end.start!(redis)
     end
+
+    it "should refuse to start if #can_start_if is present and returns false" do
+      Gaspar.configure do
+        can_run_if { false }
+        every "5m", :Foo
+      end.start!(redis)
+    end
   end
 
   context "when running in a daemon" do
@@ -165,7 +172,7 @@ describe Gaspar do
           Time.stub!(:now).and_return(150)
           redis = double :redis, :setnx => false, :get => "100", :ttl => (3.2e8.to_i - 25)
           instance = Gaspar.send(:new)
-          instance.instance_variable_set(:@redis, redis) 
+          instance.instance_variable_set(:@redis, redis)
           instance.send :sync_watches
           instance.drift.should == 25
         end

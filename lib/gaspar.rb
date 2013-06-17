@@ -50,6 +50,10 @@ class Gaspar
     end
   end
 
+  def can_run_if(&block)
+    @can_run_if = block
+  end
+
   def every(timing, *args, &block)
     options = args.extract_options!
 
@@ -82,6 +86,13 @@ class Gaspar
 
   def lock
     @lock.synchronize { yield }
+  end
+
+  def can_run?
+    return false if STDOUT.tty? or STDERR.tty?
+    return false if @can_run_if and @can_run_if.call == false
+    return false if Object.const_defined? :Rails and Rails.env.test? and !@options[:permit_test_mode]
+    return true
   end
 
   def schedule(method, timing, args = [], options = {}, &block)
@@ -143,10 +154,7 @@ class Gaspar
   end
 
   def start!(redis)
-    return log "Running under a controlling TTY. Refusing to start. Try starting from a daemonized process." if STDOUT.tty? or STDERR.tty?
-    if Object.const_defined? :Rails and Rails.env.test?
-      return unless @options[:permit_test_mode]
-    end
+    return log "Running under a controlling TTY. Refusing to start. Try starting from a daemonized process." unless can_run?
 
     @redis = redis
 
