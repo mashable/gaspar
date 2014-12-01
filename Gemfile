@@ -4,8 +4,6 @@ source 'https://rubygems.org'
 gemspec
 
 gem 'colorize'
-gem 'rspec'
 gem 'redis'
-gem 'active_support'
-gem 'timecop'
+gem 'activesupport'
 gem 'rake'

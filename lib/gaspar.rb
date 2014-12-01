@@ -92,9 +92,11 @@ class Gaspar
 
   def cron(timing, *args, &block)
     options = args.extract_options!
-    next_fire = Rufus::CronLine.new(timing).next_time
+    cron = Rufus::CronLine.new(timing)
+    next_fire = cron.next_time
+    next_next_fire = cron.next_time(next_fire + 0.001)
 
-    options[:period] = next_fire.to_i - Time.now.to_i
+    options[:period] = next_next_fire.to_i - next_fire.to_i
     schedule :cron, timing, args, options, &block
   end
 
@@ -147,7 +149,7 @@ class Gaspar
         lock { @running_jobs += 1 }
         @redis.expire key, expiry.to_i
         # ...and then run the job
-        run_callbacks(:run) { block.call }
+        run_callbacks(:run, &block)
         lock { @running_jobs -= 1 }
       end
     end

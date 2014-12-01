@@ -17,10 +17,10 @@ Gem::Specification.new do |gem|
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.require_paths = ["lib"]
 
-  gem.add_dependency('rufus-scheduler')
+  gem.add_dependency('rufus-scheduler', "~> 2.0")
   gem.add_dependency('redis', '>= 2.2.0')
   gem.add_dependency('colorize')
   gem.add_dependency('activesupport')
-  gem.add_development_dependency('rspec')
+  gem.add_development_dependency('rspec', "~> 2.0")
   gem.add_development_dependency('timecop')
 end

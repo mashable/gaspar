@@ -48,11 +48,11 @@ describe Gaspar do
         Gaspar.configure do
           before_each { callbacks.push "before" }
           after_each  { callbacks.push "after" }
-          around_each {|&block| callbacks.push "around"; block.call }
+          around_each {|gaspar, blk| callbacks.push "around"; blk.call }
 
-          every("0.35s", "run callbacks") { callbacks.push "inside" }
+          every("1s", "run callbacks") { callbacks.push "inside" }
         end.start!(redis)
-        sleep(0.4)
+        sleep(1.5)
 
         callbacks.should == %w(before around inside after)
       end
@@ -66,7 +66,7 @@ describe Gaspar do
       end
 
       it "should enqueue a job" do
-        Time.stub!(:now).and_return Time.at(1351061802)
+        Time.stub(:now).and_return Time.at(1351061802)
         Gaspar.any_instance.stub(:drift).and_return(0)
         Gaspar.configure do
           every "5m", :Foobar
@@ -84,8 +84,15 @@ describe Gaspar do
         end.start!(redis)
       end
 
+      it "should properly calculate the period for a #cron invocation" do
+        Gaspar.any_instance.should_receive(:schedule).with(:cron, "59 * * * *", [], {period: 3600})
+        Gaspar.configure do
+          cron("59 * * * *") { puts "Doing stuff" }
+        end.start!(redis)
+      end
+
       it "should quantitize #every to the next timeslice" do
-        Time.stub!(:now).and_return Time.at(1351061802)
+        Time.stub(:now).and_return Time.at(1351061802)
         Gaspar.any_instance.stub(:drift).and_return(0)
         Gaspar.any_instance.should_receive(:schedule).with(:every, "5m", [], {:first_at => Time.at(1351062000), :period => 300.0})
         Gaspar.configure do
@@ -114,13 +121,14 @@ describe Gaspar do
       it "should process jobs" do
         value = 0
         sleep 0.4
-        Gaspar.configure do
+        g = Gaspar.configure do
           every "0.35s", "update variable" do
             value += 1
           end
-        end.start!(redis)
+        end
         value.should == 0
-        sleep(0.4)
+        g.start!(redis)
+        sleep(1.5)
         value.should > 0
       end
 
@@ -128,12 +136,12 @@ describe Gaspar do
         value = 0
         sleep 0.4
         Gaspar.configure do
-          every("0.35s", "update variable with lock") { value += 1 }
-          every("0.35s", "update variable with lock") { value += 1 }
-          every("0.35s", "update variable with lock") { value += 1 }
+          every("1s", "update variable with lock") { value += 1 }
+          every("1s", "update variable with lock") { value += 1 }
+          every("1s", "update variable with lock") { value += 1 }
         end.start!(redis)
         value.should == 0
-        sleep(0.4)
+        sleep(1.5)
         value.should == 1
       end
 
@@ -184,7 +192,7 @@ describe Gaspar do
     context "instance methods" do
       describe "#sync_watches" do
         it "should compute drift" do
-          Time.stub!(:now).and_return(150)
+          Time.stub(:now).and_return(150)
           redis = double :redis, :setnx => false, :get => "100", :ttl => (3.2e8.to_i - 25)
           instance = Gaspar.send(:new)
           instance.instance_variable_set(:@redis, redis)
