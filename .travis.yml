@@ -8,5 +8,4 @@ rvm:
   - jruby-19mode
 notifications:
   email: false
-bundler_args: --without development
 services: redis-server
