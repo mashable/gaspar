@@ -52,6 +52,10 @@ class Gaspar
     def log(logger, message)
       logger.debug "[%s] %s" % ["Gaspar".yellow, message] if logger
     end
+
+    def started?
+      @singleton.started?
+    end
   end
 
   def can_run_if(&block)
@@ -98,6 +102,10 @@ class Gaspar
 
     options[:period] = next_next_fire.to_i - next_fire.to_i
     schedule :cron, timing, args, options, &block
+  end
+
+  def started?
+    @started
   end
 
   private
@@ -178,11 +186,15 @@ class Gaspar
 
     return if @started
 
-    @started = true
+
     sync_watches
-    @scheduler = Rufus::Scheduler.start_new
+    @scheduler = Rufus::Scheduler::PlainScheduler.new
     @scheduler.every("1h") { sync_watches }
     instance_eval &@block
+    return unless can_run?
+
+    @started = true
+    @scheduler.start
 
     at_exit do
       @scheduler.stop if @scheduler
@@ -192,7 +204,7 @@ class Gaspar
   end
 
   def shutdown!
-    @scheduler.stop if @scheduler
+    @scheduler.stop if @scheduler && @started
     @started = false
   end
 

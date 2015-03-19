@@ -10,6 +10,8 @@ describe Gaspar do
       Gaspar.configure do
         every "5m", :Foo
       end.start!(redis)
+
+      Gaspar.should_not be_started
     end
 
     it "should refuse to start if #can_start_if is present and returns false" do
@@ -17,6 +19,8 @@ describe Gaspar do
         can_run_if { false }
         every "5m", :Foo
       end.start!(redis)
+
+      Gaspar.should_not be_started
     end
   end
 
@@ -26,6 +30,15 @@ describe Gaspar do
       STDERR.stub(:tty?).and_return(false)
     }
     after(:each) { Gaspar.reset_callbacks(:run) }
+
+    it "should refuse to start if #can_start_if is present and returns false" do
+      Gaspar.configure do
+        can_run_if { false }
+        every "5m", :Foo
+      end.start!(redis)
+
+      Gaspar.should_not be_started
+    end
 
     context "configuration" do
       it "should accept #every during configuration" do
