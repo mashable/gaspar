@@ -29,7 +29,7 @@ describe Gaspar do
       STDOUT.stub(:tty?).and_return(false)
       STDERR.stub(:tty?).and_return(false)
     }
-    after(:each) { Gaspar.reset_callbacks(:run) }
+    after(:each) { Gaspar.reset_callbacks(:scheduled) }
 
     it "should refuse to start if #can_start_if is present and returns false" do
       Gaspar.configure do
