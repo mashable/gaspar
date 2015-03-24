@@ -1,4 +1,4 @@
-{<img src="https://travis-ci.org/mashable/gaspar.svg" alt="Build Status" />}[https://travis-ci.org/mashable/gaspar]
+![Build Status](https://travis-ci.org/mashable/gaspar.svg) (https://travis-ci.org/mashable/gaspar)
 
 # Gaspar
 <img src="http://cdn.wikimg.net/strategywiki/images/0/04/Chrono_Trigger_Sprites_Gaspar.png" align="right" style="margin: 0 0 20px 20px" />
