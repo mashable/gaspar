@@ -151,14 +151,18 @@ class Gaspar
 
     scheduler.send method, timing, options do
       # If we can acquire a lock...
-      if @redis.setnx key, Process.pid
-        log "#{Process.pid} running #{name}"
-        # ...set the lock to expire, which makes sure that staggered workers with out-of-sync clocks don't
-        lock { @running_jobs += 1 }
-        @redis.expire key, expiry.to_i
-        # ...and then run the job
-        run_callbacks(:scheduled, &block)
-        lock { @running_jobs -= 1 }
+      begin
+        if @redis.setnx key, Process.pid
+          log "#{Process.pid} running #{name}"
+          # ...set the lock to expire, which makes sure that staggered workers with out-of-sync clocks don't
+          lock { @running_jobs += 1 }
+          @redis.expire key, expiry.to_i
+          # ...and then run the job
+          run_callbacks(:scheduled, &block)
+          lock { @running_jobs -= 1 }
+        end
+      rescue Redis::BaseError
+        # pass
       end
     end
   end
