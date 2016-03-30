@@ -145,19 +145,38 @@ describe Gaspar do
         value.should > 0
       end
 
-      it "should prevent jobs from running multiple times for the same time period" do
-        value = 0
-        sleep 0.4
-        Gaspar.configure do
-          every("1s", "update variable with lock") { value += 1 }
-          every("1s", "update variable with lock") { value += 1 }
-          every("1s", "update variable with lock") { value += 1 }
-        end.start!(redis)
-        value.should == 0
-        sleep(1.5)
-        value.should == 1
-      end
+      context "multiple concurrent jobs" do
+        let(:accumulator) { [] }
+        let(:gaspar) do
+          acc = accumulator
+          Gaspar.configure do
+            3.times do
+              every("1s", "update variable with lock") { acc << true }
+            end
+          end
+        end
+        let(:run_jobs) { -> { gaspar.start!(redis); sleep(1.5) } }
 
+        context "under Redis 2.8+" do
+          before do
+            gaspar.singleton.stub(:lua?).and_return(true)
+          end
+
+          it "should prevent jobs from running multiple times for the same time period" do
+            expect(&run_jobs).to change { accumulator.length }.from(0).to(1)
+          end
+        end
+
+        context "under Redis 2.6-" do
+          before do
+            gaspar.singleton.stub(:lua?).and_return(false)
+          end
+
+          it "should prevent jobs from running multiple times for the same time period" do
+            expect(&run_jobs).to change { accumulator.length }.from(0).to(1)
+          end
+        end
+      end
     end
 
     context "class methods" do

@@ -110,6 +110,10 @@ class Gaspar
 
   private
 
+  def lua?
+    @can_use_lua
+  end
+
   def lock
     @lock.synchronize { yield }
   end
@@ -152,11 +156,10 @@ class Gaspar
     scheduler.send method, timing, options do
       # If we can acquire a lock...
       begin
-        if @redis.setnx key, Process.pid
+        acquire_lock(key, expiry) do
           log "#{Process.pid} running #{name}"
           # ...set the lock to expire, which makes sure that staggered workers with out-of-sync clocks don't
           lock { @running_jobs += 1 }
-          @redis.expire key, expiry.to_i
           # ...and then run the job
           run_callbacks(:scheduled, &block)
           lock { @running_jobs -= 1 }
@@ -187,9 +190,9 @@ class Gaspar
     return log "Running under a controlling TTY. Refusing to start. Try starting from a daemonized process." unless can_run?
 
     @redis = redis
+    @can_use_lua = @redis.info.keys.grep(/_lua/).any?
 
     return if @started
-
 
     sync_watches
     @scheduler = Rufus::Scheduler::PlainScheduler.new
@@ -222,5 +225,38 @@ class Gaspar
     offset = (3.2e8 - ttl)
     @drift = Time.now.to_i - (epoch + offset)
     log "Resynced - Drift is #{@drift}"
+  end
+
+  def acquire_lock(name, expiry, &block)
+    value = "#{Process.pid}-#{Time.now.utc.to_i}"
+    if lua?
+      lua_lock(name, expiry, value, &block)
+    else
+      legacy_lock(name, expiry, value, &block)
+    end
+  end
+
+  def lua_lock(key, expiry, value, &block)
+    block.call if @redis.evalsha(register_redis_lock_scripts, keys: [key], argv: [expiry, value]) == 1
+  end
+
+  def legacy_lock(key, expiry, value, &block)
+    if @redis.setnx key, value
+      @redis.expire key, expiry.to_i
+      block.call
+    end
+  end
+
+  def register_redis_lock_scripts
+    @lock_func_sha ||= begin
+      lock_func = <<-EOF
+        if redis.call('ttl', KEYS[1]) == -1 then
+          redis.call('del', KEYS[1])
+        end
+        return redis.call('setnx', KEYS[1], ARGV[2]) == 1 and redis.call('expire', KEYS[1], ARGV[1]) and 1 or 0
+      EOF
+      @redis.script(:load, lock_func)
+      Digest::SHA1.hexdigest(lock_func)
+    end
   end
 end
