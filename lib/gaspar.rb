@@ -237,7 +237,7 @@ class Gaspar
   end
 
   def lua_lock(key, expiry, value, &block)
-    block.call if @redis.evalsha(register_redis_lock_scripts, keys: [key], argv: [expiry, value]) == 1
+    block.call if @redis.evalsha(register_redis_lock_scripts, keys: [key], argv: [expiry.to_i, value]) == 1
   end
 
   def legacy_lock(key, expiry, value, &block)
